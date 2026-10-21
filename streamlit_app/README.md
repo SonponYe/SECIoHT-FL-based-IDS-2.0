@@ -96,6 +96,26 @@ Press `Ctrl+C` in the terminal running Streamlit.
 4. **Explainable AI (SHAP)**:
    Waterfall plots and global feature rankings identify which physiological anomalies or packet characteristics triggered the intrusion alert.
 
+### Verified reproduction results
+
+The current bundled WUSTL-EHMS-2020 result chain is based on 10 communication
+rounds and 3 local epochs:
+
+| Setting | Accuracy | Recall | Epsilon | Privacy |
+| --- | ---: | ---: | ---: | --- |
+| Centralized baseline | 93.01% | 72.62% | N/A | None - all data pooled |
+| Federated, no DP | 92.83% | 85.09% | N/A | Data stays local |
+| Federated + DP (noise=1.5) | 82.6% | 60.4% | 1.40 | Strong formal guarantee |
+| Federated + DP (noise=0.5) | 83.7% | 57.9% | 20.08 | Weak - not recommended |
+
+The measured centralized run had precision 71.91%, F1 72.26%, and counts
+TP=297, TN=2738, FP=116, FN=112. The measured federated run had precision
+66.79%, F1 74.84%, and counts TP=348, TN=2681, FP=173, FN=61.
+
+The paper reports 93.2% accuracy at epsilon 0.44 using 100 rounds and 100
+local epochs. Re-running at that scale remains the next step. Stage 5 formal
+evaluation and Stage 6 SHAP explainability are still pending.
+
 ### Artifact contract
 
 Copy notebook outputs into `artifacts/models/` and `artifacts/results/`. The app

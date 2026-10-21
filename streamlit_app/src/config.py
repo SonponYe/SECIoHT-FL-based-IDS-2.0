@@ -66,58 +66,48 @@ WUSTL_FEATURE_NAMES = [
 # Baseline Benchmark Results for Model Arena
 DEFAULT_BENCHMARK_RESULTS = [
     {
-        "Setting": "Centralized DNN (Replication Baseline)",
-        "Accuracy": 0.877,
-        "Precision": 0.510,
-        "Recall": 0.730,
-        "F1-Score": 0.600,
-        "Privacy (Epsilon)": "None (Raw Data Centralized)",
-        "Status": "Verified Local Run"
+        "Setting": "Centralized baseline",
+        "Accuracy": 0.930,
+        "Precision": 0.71912832,
+        "Recall": 0.72616136,
+        "F1-Score": 0.72262773,
+        "Epsilon": None,
+        "Privacy": "None - all data pooled",
+        "TP": 297,
+        "TN": 2738,
+        "FP": 116,
+        "FN": 112,
+        "Status": "Stage 2 measured run"
     },
     {
-        "Setting": "Centralized CNN (Replication Baseline)",
-        "Accuracy": 0.702,
-        "Precision": 0.270,
-        "Recall": 0.800,
-        "F1-Score": 0.400,
-        "Privacy (Epsilon)": "None (Raw Data Centralized)",
-        "Status": "Verified Local Run"
+        "Setting": "Federated, no DP",
+        "Accuracy": 0.92828685,
+        "Precision": 0.66794625,
+        "Recall": 0.85085574,
+        "F1-Score": 0.74838709,
+        "Epsilon": None,
+        "Privacy": "Data stays local",
+        "TP": 348,
+        "TN": 2681,
+        "FP": 173,
+        "FN": 61,
+        "Status": "Stage 3 measured run"
     },
     {
-        "Setting": "Federated DNN (FedAvg, No DP)",
-        "Accuracy": 0.865,
-        "Precision": 0.495,
-        "Recall": 0.710,
-        "F1-Score": 0.583,
-        "Privacy (Epsilon)": "Federated Only (No Gradient Noise)",
-        "Status": "Simulated Shards"
+        "Setting": "Federated + DP (noise=1.5)",
+        "Accuracy": 0.826,
+        "Recall": 0.604,
+        "Epsilon": 1.40,
+        "Privacy": "Strong formal guarantee",
+        "Status": "Verified reproduction"
     },
     {
-        "Setting": "Federated DNN + DP (Opacus, Noise=1.5)",
-        "Accuracy": 0.832,
-        "Precision": 0.460,
-        "Recall": 0.680,
-        "F1-Score": 0.548,
-        "Privacy (Epsilon)": "0.44 (Strong Guarantee)",
-        "Status": "Recommended DP"
-    },
-    {
-        "Setting": "Federated DNN + DP (Opacus, Noise=0.5)",
-        "Accuracy": 0.781,
-        "Precision": 0.380,
-        "Recall": 0.610,
-        "F1-Score": 0.468,
-        "Privacy (Epsilon)": "1.82 (Moderate Guarantee)",
-        "Status": "Degraded / High Variance"
-    },
-    {
-        "Setting": "MDPI Paper Best Reported (WUSTL, DNN, Noise=1.5)",
-        "Accuracy": 0.932,
-        "Precision": 0.915,
-        "Recall": 0.942,
-        "F1-Score": 0.928,
-        "Privacy (Epsilon)": "0.44",
-        "Status": "Original Paper (Mosaiyebzadeh et al. 2025)"
+        "Setting": "Federated + DP (noise=0.5)",
+        "Accuracy": 0.837,
+        "Recall": 0.579,
+        "Epsilon": 20.08,
+        "Privacy": "Weak - not recommended",
+        "Status": "Verified reproduction"
     }
 ]
 

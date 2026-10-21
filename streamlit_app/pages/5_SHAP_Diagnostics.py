@@ -17,8 +17,8 @@ if str(APP_DIR) not in sys.path:
 
 from components.sidebar import render_sidebar
 from src.config import ATTACK_PRESETS
+from src.artifacts import result_path
 from src.preprocessing import create_feature_vector, load_or_create_sample_data
-from src.explainability import compute_feature_contributions, get_global_feature_importance
 
 # Page Setup
 st.set_page_config(page_title="SHAP Diagnostics | SECIoHT-FL", layout="wide")
@@ -43,7 +43,29 @@ with tab_global:
         """
     )
 
-    df_global = get_global_feature_importance()
+    importance_path = result_path("stage6_importance")
+    if not importance_path.exists():
+        st.warning(
+            "Stage 6 is pending. The verified aggregate metrics do not contain "
+            "the trained model outputs or test rows required to compute SHAP values. "
+            "Run the notebook Stage 6 cells and copy stage6_feature_importance.csv "
+            "into streamlit_app/artifacts/results/."
+        )
+        st.stop()
+
+    df_global = pd.read_csv(importance_path)
+    df_global = df_global.rename(columns={
+        "Mean_Abs_SHAP": "Importance",
+        "mean_abs_shap": "Importance",
+        "Feature": "Feature",
+    })
+    if "Category" not in df_global.columns:
+        df_global["Category"] = df_global["Feature"].map(
+            lambda name: "Biometric Vital" if name.startswith("Mean_") or name in {
+                "Respiration_Rate"
+            } else "Network Flow"
+        )
+    df_global = df_global.head(10)
 
     col_g1, col_g2 = st.columns([3, 2])
 
@@ -80,6 +102,14 @@ with tab_local:
         "Select a scenario to inspect the exact feature-by-feature forces pushing the model toward an Attack or Normal verdict."
     )
 
+    shap_values_path = APP_DIR / "artifacts" / "results" / "shap_values.npz"
+    if not shap_values_path.exists():
+        st.warning(
+            "Local SHAP explanations are pending. The app needs the notebook's "
+            "exported shap_values.npz before it can explain a specific test row."
+        )
+        st.stop()
+
     selected_scenario = st.selectbox(
         "Choose Telemetry Scenario to Explain:",
         list(ATTACK_PRESETS.keys())
@@ -89,7 +119,14 @@ with tab_local:
     feature_vec = create_feature_vector(p_data["vitals"], p_data["network"])
     is_attack = p_data["label"] == 1
 
-    df_contrib = compute_feature_contributions(feature_vec, is_attack)
+    shap_data = np.load(shap_values_path)
+    shap_values = shap_data["shap_values"]
+    feature_names = list(shap_data["feature_names"]) if "feature_names" in shap_data else []
+    row_index = min(0, len(shap_values) - 1)
+    df_contrib = pd.DataFrame({
+        "Feature": feature_names,
+        "SHAP_Value": shap_values[row_index],
+    }).sort_values("SHAP_Value", key=np.abs, ascending=False)
 
     st.markdown(f"**Diagnostic Summary for: {selected_scenario}**")
     

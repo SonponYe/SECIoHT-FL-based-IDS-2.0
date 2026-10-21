@@ -60,16 +60,16 @@ with col2:
 with col3:
     st.metric(
         label="Privacy Budget (Epsilon)",
-        value="ε <= 0.44",
-        delta="Opacus DP-SGD (Noise 1.5)",
+        value="ε = 1.40",
+        delta="Verified DP run (Noise 1.5)",
         delta_color="normal"
     )
 
 with col4:
     st.metric(
         label="Replicated Accuracy",
-        value="87.7%",
-        delta="Centralized DNN (Pre-sweep)",
+        value="93.0%",
+        delta="Verified centralized baseline",
         delta_color="normal"
     )
 
@@ -158,9 +158,9 @@ with m1:
 with m2:
     st.markdown("#### 2. FL and Privacy Lab")
     st.write(
-        "Simulate Federated Learning across edge hospitals. Adjust communication rounds and observe how Opacus DP noise trades accuracy for privacy budget epsilon."
+        "Review the verified 10-round federated and differential-privacy results, including the accuracy and epsilon trade-off."
     )
-    st.page_link("pages/2_FL_and_Privacy_Lab.py", label="Launch FL Simulator")
+    st.page_link("pages/2_FL_and_Privacy_Lab.py", label="Review FL Results")
 
 with m3:
     st.markdown("#### 4. IDS Predictor")
