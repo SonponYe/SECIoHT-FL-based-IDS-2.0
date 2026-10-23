@@ -137,3 +137,13 @@ Centralized baseline: DNN, CNN
 ## Citation
 
 Fatemeh Mosaiyebzadeh, Seyedamin Pouriyeh, Meng Han, Liyuan Liu, Yixin Xie, Liang Zhao, Daniel Macêdo Batista. Privacy-Preserving Federated Learning-Based Intrusion Detection System for IoHT Devices. https://www.mdpi.com/2079-9292/14/1/67
+
+## Accuracy tracks (beating the paper)
+
+Two separate lines of work, run on the same data, split and test set, and compared at the end:
+
+- [`our_work/track_paper/`](our_work/track_paper/README.md) - improves the paper's own models and pipeline (optimizer, class weighting, threshold tuning, fair DP settings, gradient boosting). No MoE.
+- [`our_work/track_moe/`](our_work/track_moe/README.md) - the Mixture-of-Experts model and domain-aware aggregation from `MoE-FL_Gateway_Design_Document.docx`, applied to WUSTL.
+- [`our_work/compare/`](our_work/compare/README.md) - merges both tracks into one table and lists the exact commands to rerun everything.
+
+Every experiment supports two protocols: `paper` (SMOTE on the whole dataset before the split, which we suspect the paper did) and `honest` (split first, balance training data only). `honest` is the one we trust.
