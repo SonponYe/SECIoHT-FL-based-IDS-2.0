@@ -52,3 +52,8 @@ pytest.ini
 .flake8
 .isortrc
 .pre-commit-config.yaml
+
+# Smoke-test outputs (regenerable)
+our_work/track_paper/results/quick/
+our_work/track_moe/results/quick/
+our_work/compare/final_comparison_quick.*

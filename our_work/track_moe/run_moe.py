@@ -22,7 +22,7 @@ from track_moe.models_moe import MoE
 
 warnings.filterwarnings("ignore")
 HERE = Path(__file__).resolve().parent
-TRACK = "moe"
+TRACK = "moe-track"
 STAGES = ["central", "fedavg", "dp", "noniid", "noniid_dp"]
 AUX_W = 0.01
 

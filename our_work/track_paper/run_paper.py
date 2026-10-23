@@ -19,7 +19,7 @@ from shared.models_base import CNN, DNN
 
 warnings.filterwarnings("ignore")
 HERE = Path(__file__).resolve().parent
-TRACK = "paper"
+TRACK = "paper-track"
 STAGES = ["reproduce", "optim", "threshold", "cnn", "fedavg", "dp", "gbt", "fedgbt"]
 OPTS = {"sgd": 0.01, "momentum": 0.01, "adam": 1e-3}
 
