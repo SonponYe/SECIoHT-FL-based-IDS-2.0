@@ -37,3 +37,5 @@ Seven ready-made notebooks. Each one clones this (public) repo, installs `opacus
 * **Do not paste a GitHub token into a notebook.** Results come back as zip downloads and get committed from your computer.
 * If a notebook fails, open the `log_*.log` files it printed in its output to see which seed or stage failed. Re-running appends duplicates of finished runs, but the comparison averages per seed, so delete the failed notebook's partial lines first, or re-run only the failed stage.
 * The notebooks always clone the latest `main`. If you change the code, push it before starting a notebook.
+
+For a step-by-step guide aimed at a teammate (what to run, in which order, and what to do after each run), see [RUNBOOK.md](RUNBOOK.md).
