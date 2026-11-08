@@ -7,15 +7,16 @@ from pathlib import Path
 
 import pandas as pd
 
-from shared.metrics import fmt, load_rows, summarize
+from stages.s6_evaluation.summary import fmt, load_rows, summarize
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 PAPER = dict(acc=0.932, prec=0.915, rec=0.942, f1=0.928, eps=0.44, delta=1e-4)
 GROUPS = ["Centralized", "Federated (no DP)", "Federated + DP", "Non-IID", "Non-IID + DP"]
 PROTOCOL_NOTE = {
-    "paper": "paper protocol: SMOTE on the whole dataset BEFORE the split -> test set is ~50% attack. "
-             "Use only for a direct comparison with the paper's numbers.",
+    "paper": "paper protocol ('balanced-leak' imitation): SMOTE on the whole dataset BEFORE the split -> test set is "
+             "~50% attack. It is NOT the authors' actual test set (the audit found a larger, ~89%-attack one); "
+             "it only shows how an easy test set inflates scores.",
     "honest": "honest protocol: split first, balance training data only -> real test set (~12.5% attack). "
               "This is the protocol we trust.",
 }
@@ -24,7 +25,7 @@ PROTOCOL_NOTE = {
 def build(quick):
     sub = "quick" if quick else ""
     frames = []
-    for t in ("track_paper", "track_moe"):
+    for t in ("baseline_2023", "paper_2025", "moe"):
         p = ROOT / t / "results" / sub / "results.jsonl"
         if p.exists():
             frames.append(load_rows(p))
@@ -42,11 +43,12 @@ def build(quick):
 
 
 def table(df, with_dp=True):
-    cols = ["track", "model", "setting", "thr", "Acc", "Prec", "Rec", "F1", "AUC"] + (["eps", "delta", "DP guarantee"] if with_dp else [])
+    cols = ["track", "model", "setting", "thr", "Acc", "Prec", "Rec", "F1", "MacroF1", "Rec(normal)", "AUC"] + (["eps", "delta", "DP guarantee"] if with_dp else [])
     rows = []
     for _, r in df.iterrows():
         rows.append([r.track, r.model, r.setting, r.thr_mode, fmt(r.acc_mean, r.acc_std), fmt(r.prec_mean, r.prec_std),
-                     fmt(r.rec_mean, r.rec_std), fmt(r.f1_mean, r.f1_std), fmt(r.auc_mean, r.auc_std)]
+                     fmt(r.rec_mean, r.rec_std), fmt(r.f1_mean, r.f1_std), fmt(r.macro_f1_mean, r.macro_f1_std),
+                     fmt(r.rec_normal_mean, r.rec_normal_std), fmt(r.auc_mean, r.auc_std)]
                     + ([("-" if pd.isna(r.eps) else f"{r.eps:.2f}"), ("-" if pd.isna(r.get("delta")) else f"{r.delta:g}"),
                         r.dp_guarantee] if with_dp else []))
     return cols, rows
@@ -73,8 +75,8 @@ def winners(s, protocol):
                          f"acc {b2.acc_mean:.3f}, F1 {b2.f1_mean:.3f}, epsilon {b2.eps:.2f}.")
             lines.append(f"  - Beats the paper on accuracy AND F1 (0.932 / 0.928)? "
                          f"**{'YES' if b2.acc_mean > PAPER['acc'] and b2.f1_mean > PAPER['f1'] else 'NO'}**"
-                         + ("  (paper protocol only: comparison with the paper's own, likely leaky, pipeline)"
-                            if protocol == "paper" else "  (note: the paper's numbers come from a different, likely leaky, test set)"))
+                         + ("  (paper protocol only: a balanced-leak imitation, not the authors' actual test set)"
+                            if protocol == "paper" else "  (note: the paper's numbers use a test set that the replication audit could not reconstruct from the public data)"))
         else:
             lines.append(f"- No DP run reached epsilon <= 0.44 in the {protocol} protocol.")
         b3 = dp.sort_values("f1_mean", ascending=False).iloc[0]
@@ -101,7 +103,7 @@ def main():
     a = ap.parse_args()
     s = build(a.quick)
     s.to_csv(HERE / ("final_comparison_quick.csv" if a.quick else "final_comparison.csv"), index=False)
-    doc = ["# Final comparison: Track Paper vs Track MoE", "",
+    doc = ["# Final comparison: paper_2025 vs moe (vs baseline_2023)", "",
            "Mean ± std over seeds. `thr` = decision threshold: `@0.5` fixed, `+thr` tuned on a validation slice "
            "(never on the test set). Rows marked *no DP guarantee* are not private.", ""]
     for protocol in ("honest", "paper"):
@@ -111,8 +113,8 @@ def main():
         maj = d.majority_acc.dropna().iloc[0] if "majority_acc" in d and d.majority_acc.notna().any() else float("nan")
         doc += [f"## Protocol: {protocol}", "", f"_{PROTOCOL_NOTE[protocol]}_", ""]
         ref = [["-", "Paper (reported)", "WUSTL DNN, noise 1.5", "-", f"{PAPER['acc']:.3f}", f"{PAPER['prec']:.3f}",
-                f"{PAPER['rec']:.3f}", f"{PAPER['f1']:.3f}", "-", "0.44", "0.0001", "yes (reported)"],
-               ["-", "Baseline", "predict everything normal", "-", f"{maj:.3f}", "-", "0.000", "0.000", "0.500", "-", "-", "-"]]
+                f"{PAPER['rec']:.3f}", f"{PAPER['f1']:.3f}", "-", "0.48 (audit)", "-", "0.44", "0.0001", "yes (reported)"],
+               ["-", "Baseline", "predict everything normal", "-", f"{maj:.3f}", "-", "0.000", "0.000", "-", "1.000", "0.500", "-", "-", "-"]]
         for g in GROUPS:
             gd = d[d.group == g].sort_values(["stage", "setting", "model", "thr_mode"])
             if gd.empty:
