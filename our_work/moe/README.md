@@ -5,7 +5,7 @@ This track takes the model and the aggregation idea from `MoE-FL_Gateway_Design_
 Run from `our_work/`:
 
 ```bash
-python -m track_moe.run_moe --stage central --protocol honest --seeds 0 1 2
+python -m moe.run --stage central --protocol honest --seeds 0 1 2
 ```
 
 Flags are the same as Track Paper's. Results go to `results/results.jsonl` and `results/summary.csv`.
@@ -19,13 +19,13 @@ Think of it as a small panel of specialists:
 3. The two chosen experts each give an attack/normal opinion; the answer is their weighted blend.
 4. During training a small **balancing penalty** (weight 0.01) stops the gate from sending everything to one expert, and a little noise on the gate encourages exploration.
 
-Code: `models_moe.py` (copied unchanged from `experiments/common.py`). All 4 experts run on every sample and are masked by the gate; this is needed so Opacus can compute per-sample gradients. Under DP the balancing penalty is **switched off** (weight 0) because it averages over the batch and would couple samples, which breaks the per-sample privacy analysis.
+Code: `model.py` (copied unchanged from `experiments/common.py`). All 4 experts run on every sample and are masked by the gate; this is needed so Opacus can compute per-sample gradients. Under DP the balancing penalty is **switched off** (weight 0) because it averages over the batch and would couple samples, which breaks the per-sample privacy analysis.
 
 For every MoE run we also save the **expert usage share** and the **routing entropy** (1 = routing spread evenly, 0 = one expert does everything) to show whether the experts specialise or collapse.
 
 ## Recipe, so the tracks cannot drift apart
 
-Optimizer, learning rate, balancing, batch size and epochs come from `shared/best_recipe.json`, written by Track Paper stage P2. The MoE therefore gets exactly the recipe that was chosen for the DNN (slightly conservative for the MoE, since it was not tuned for it).
+Optimizer, learning rate, balancing, batch size and epochs come from `stages/s3_training/best_recipe.json`, written by Track Paper stage P2. The MoE therefore gets exactly the recipe that was chosen for the DNN (slightly conservative for the MoE, since it was not tuned for it).
 
 ## Stages
 
