@@ -1,4 +1,4 @@
-"""Aggregation strategies for the MoE (plug into shared.fl.run_fl as `aggregator`).
+"""Aggregation strategies for the MoE (plug into stages.s4_federated.simulation.run_fl as `aggregator`).
 
 domain_aggregator  Domain-aware aggregation from the design document:
     * embedding            -> averaged across ALL clients (weight = sample count)
@@ -14,7 +14,7 @@ local_aggregator   No communication: every client keeps its own trained weights 
 import numpy as np
 import torch
 
-from shared.fl import wavg
+from stages.s4_federated.state import wavg
 
 
 def moe_groups(model, K=4):

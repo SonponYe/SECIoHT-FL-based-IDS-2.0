@@ -1,10 +1,12 @@
-"""Track Paper: improve the paper's OWN models/pipeline (DNN, CNN, FedAvg, DP) -- no MoE anywhere.
+"""paper_2025: improve the 2025 paper's OWN models/pipeline (DNN, CNN, FedAvg, DP) - no MoE anywhere.
 
-Run from our_work/ :   python -m track_paper.run_paper --stage optim --protocol honest --seeds 0 1 2
+Run from our_work/ :   python -m paper_2025.run --stage optim --protocol honest --seeds 0 1 2
 Stages: reproduce(P0) optim(P1) threshold(P2) cnn(P3) fedavg(P4) dp(P5) gbt(P6) fedgbt(P7) | all
+
+This file only ORCHESTRATES: every step is a call into stages/ (s1 preprocessing -> s2 models ->
+s3 training -> s4 federated -> s5 privacy -> s6 evaluation).  Change a block there, not here.
 """
 import argparse
-import json
 import time
 import warnings
 from pathlib import Path
@@ -12,16 +14,24 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from shared import fl
-from shared.data import DEFAULT_CSV, client_balance, iid_parts, make_split
-from shared.metrics import load_rows, log_row, report, report_fixed, summarize
-from shared.models_base import CNN, DNN
+from stages.s1_preprocessing.loading import DEFAULT_CSV
+from stages.s1_preprocessing.partitioning import iid_parts
+from stages.s1_preprocessing.protocols import client_balance, make_split
+from stages.s2_models.cnn import CNN
+from stages.s2_models.dnn import DNN
+from stages.s3_training.centralized import fit_central
+from stages.s3_training.loops import make_loader, predict_proba, train_epochs
+from stages.s3_training.optimizers import DEFAULT_LR, make_optimizer
+from stages.s3_training.recipes import load_recipe, save_recipe
+from stages.s4_federated.simulation import eval_state, run_fl
+from stages.s5_privacy.dp_settings import dp_grid
+from stages.s6_evaluation.reporting import log_row, report, report_fixed
+from stages.s6_evaluation.summary import load_rows, summarize
 
 warnings.filterwarnings("ignore")
 HERE = Path(__file__).resolve().parent
-TRACK = "paper-track"
+TRACK = "paper-track"          # label stored in results; kept so earlier results stay valid
 STAGES = ["reproduce", "optim", "threshold", "cnn", "fedavg", "dp", "gbt", "fedgbt"]
-OPTS = {"sgd": 0.01, "momentum": 0.01, "adam": 1e-3}
 
 
 def base(split, stage, group, model, setting, dp_guarantee="no (no DP)"):
@@ -53,7 +63,7 @@ def main():
     protocols = ["paper", "honest"] if a.protocol == "both" else [a.protocol]
     stages = STAGES if a.stage == "all" else [a.stage]
     gbt_iter = 30 if a.quick else 400
-    print(f"== track_paper | stages={stages} protocols={protocols} seeds={a.seeds} quick={a.quick} -> {jl}", flush=True)
+    print(f"== paper_2025 | stages={stages} protocols={protocols} seeds={a.seeds} quick={a.quick} -> {jl}", flush=True)
 
     for stage in stages:
         for protocol in protocols:
@@ -74,15 +84,15 @@ def main():
 # ------------------------------------------------------------------ P0
 def stage_reproduce(a, jl, protocol, seed, _):
     """The notebook's exact DNN recipe (plain SGD lr .01, batch 64, 100 epochs, SMOTE, last epoch)
-    under BOTH protocols -- evidence for/against the leak explanation."""
+    under BOTH protocols - shows how much the evaluation design alone moves the scores."""
     epochs = 3 if a.quick else 100
     sp = make_split(protocol, seed, balance="smote", csv=a.csv, val_frac=0)
     print(f"   {protocol}: test attack rate {sp.info['test_attack_rate']}  all-normal accuracy {sp.info['majority_acc']}")
     torch.manual_seed(seed)
     m = DNN()
-    opt = fl.make_optimizer(m.parameters(), "sgd", 0.01)
-    fl.train_epochs(m, fl.make_loader(sp.Xtr, sp.ytr, 64), epochs, opt)
-    p = fl.predict_proba(m, sp.Xte)
+    opt = make_optimizer(m.parameters(), "sgd", 0.01)
+    train_epochs(m, make_loader(sp.Xtr, sp.ytr, 64), epochs, opt)
+    p = predict_proba(m, sp.Xte)
     report_fixed(jl, base(sp, "P0", "Centralized", "DNN", "P0 notebook recipe (SGD, SMOTE, 100 ep)"), sp.yte, p, seed,
                  extra=dict(recipe=dict(opt="sgd", lr=0.01, batch=64, epochs=epochs, balance="smote")))
 
@@ -90,14 +100,14 @@ def stage_reproduce(a, jl, protocol, seed, _):
 # ------------------------------------------------------------------ P1
 def stage_optim(a, jl, protocol, seed, _):
     """Optimizer x balancing comparison; keeps the best-validation-F1 checkpoint."""
-    balances = ["smote"] if protocol == "paper" else ["smote", "weights"]   # paper data is pre-balanced
-    for opt, lr in OPTS.items():
+    balances = ["smote"] if protocol == "paper" else ["smote", "weights"]   # `paper` data is pre-balanced
+    for opt, lr in DEFAULT_LR.items():
         for bal in balances:
             recipe = dict(opt=opt, lr=lr, balance=bal, batch=64, epochs=a.epochs)
             sp = make_split(protocol, seed, bal, a.csv)
-            model, _ = fl.fit_central(DNN, sp, recipe, seed)
+            model, _ = fit_central(DNN, sp, recipe, seed)
             report(jl, base(sp, "P1", "Centralized", "DNN", f"P1 {opt}+{bal}"), sp.yva,
-                   fl.predict_proba(model, sp.Xva), sp.yte, fl.predict_proba(model, sp.Xte), seed,
+                   predict_proba(model, sp.Xva), sp.yte, predict_proba(model, sp.Xte), seed,
                    extra=dict(recipe=recipe))
 
 
@@ -114,9 +124,9 @@ def stage_threshold(jl, protocol, save=True):
     best = tuned.index[0]
     rec = df[df.setting == best].iloc[0]["recipe"]
     if save:
-        fl.save_recipe(protocol, rec)
+        save_recipe(protocol, rec)
     else:
-        print('  (quick mode: recipe NOT saved)')
+        print("  (quick mode: recipe NOT saved)")
     print(f"P2/{protocol}: validation F1 by setting:\n{tuned.round(4).to_string()}\n  -> best = {best}  recipe={rec}")
     sub = df[df.setting == best].groupby("thr_mode")[["acc", "prec", "rec", "f1", "auc"]].mean().round(4)
     print("  test scores of the chosen setting (mean over seeds):\n" + sub.to_string())
@@ -124,39 +134,39 @@ def stage_threshold(jl, protocol, save=True):
 
 # ------------------------------------------------------------------ P3
 def stage_cnn(a, jl, protocol, seed, _):
-    r = fl.load_recipe(protocol)
+    r = load_recipe(protocol)
     sp = make_split(protocol, seed, r["balance"], a.csv)
-    model, _ = fl.fit_central(CNN, sp, dict(r, epochs=a.epochs if a.quick else r["epochs"]), seed)
+    model, _ = fit_central(CNN, sp, dict(r, epochs=a.epochs if a.quick else r["epochs"]), seed)
     report(jl, base(sp, "P3", "Centralized", "CNN", f"P3 best recipe ({r['opt']}+{r['balance']})"), sp.yva,
-           fl.predict_proba(model, sp.Xva), sp.yte, fl.predict_proba(model, sp.Xte), seed, extra=dict(recipe=r))
+           predict_proba(model, sp.Xva), sp.yte, predict_proba(model, sp.Xte), seed, extra=dict(recipe=r))
 
 
 # ------------------------------------------------------------------ P4
 def stage_fedavg(a, jl, protocol, seed, _):
-    r = fl.load_recipe(protocol)
+    r = load_recipe(protocol)
     sp = make_split(protocol, seed, "none", a.csv)
     parts = iid_parts(sp.Xtr, sp.ytr, seed, 3)
-    res = fl.run_fl(DNN, parts, a.rounds, a.local_epochs, r, seed=seed, client_bal=client_balance(protocol, r["balance"]))
+    res = run_fl(DNN, parts, a.rounds, a.local_epochs, r, seed=seed, client_bal=client_balance(protocol, r["balance"]))
     g = res["cstates"][0]
     report(jl, base(sp, "P4", "Federated (no DP)", "DNN", f"P4 FedAvg 3 IID clients ({a.rounds}r x {a.local_epochs}e)"),
-           sp.yva, fl.eval_state(DNN, g, sp.Xva), sp.yte, fl.eval_state(DNN, g, sp.Xte), seed,
+           sp.yva, eval_state(DNN, g, sp.Xva), sp.yte, eval_state(DNN, g, sp.Xte), seed,
            extra=dict(recipe=r, rounds=a.rounds, local_epochs=a.local_epochs))
 
 
 # ------------------------------------------------------------------ P5
 def stage_dp(a, jl, protocol, seed, _):
-    r = fl.load_recipe(protocol)
+    r = load_recipe(protocol)
     sp = make_split(protocol, seed, "none", a.csv)
     parts = iid_parts(sp.Xtr, sp.ytr, seed, 3)
-    for cfg in fl.dp_grid(a.grid, r):
+    for cfg in dp_grid(a.grid, r):
         print(f"   {cfg['setting']}", flush=True)
         rr = dict(r, opt=cfg["opt"], lr=cfg["lr"])
         dp = dict(noise=cfg["noise"], clip=cfg["clip"], delta=cfg["delta"], target_eps=cfg["target_eps"])
-        res = fl.run_fl(DNN, parts, a.rounds, a.local_epochs, rr, dp=dp, seed=seed,
-                        client_bal=client_balance(protocol, r["balance"]), trace_eps=a.quick)
+        res = run_fl(DNN, parts, a.rounds, a.local_epochs, rr, dp=dp, seed=seed,
+                     client_bal=client_balance(protocol, r["balance"]), trace_eps=a.quick)
         g = res["cstates"][0]
         report(jl, base(sp, "P5", "Federated + DP", "DNN", cfg["setting"], "yes (epsilon, delta)"), sp.yva,
-               fl.eval_state(DNN, g, sp.Xva), sp.yte, fl.eval_state(DNN, g, sp.Xte), seed,
+               eval_state(DNN, g, sp.Xva), sp.yte, eval_state(DNN, g, sp.Xte), seed,
                extra=dict(eps=round(float(res["eps"]), 4), delta=cfg["delta"], noise=round(float(res["noise"]), 4),
                           clip=cfg["clip"], eps_trace=res["eps_trace"], recipe=rr, rounds=a.rounds,
                           local_epochs=a.local_epochs))
