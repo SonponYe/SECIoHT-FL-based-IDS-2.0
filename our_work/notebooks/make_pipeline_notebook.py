@@ -114,7 +114,7 @@ from baseline_2023.federated import run_fl_2023            # S3/S4
 from baseline_2023.training import predict_proba_2023      # S6
 
 d = make_data_2023(SEED, n_clients=5)
-m = run_fl_2023(DNN2023, d["clients"], rounds=2 if QUICK else 100, local_epochs=1 if QUICK else 100,
+m = run_fl_2023(DNN2023, d["clients"], rounds=2 if QUICK else 100, local_epochs=1,
                 client_lr=0.01, server_lr=0.05, batch=1024, seed=SEED)
 base23 = dict(track="notebook", protocol="honest", stage="NB23", group="Federated (no DP)", model="DNN-FL 2023",
               setting="notebook 5 clients", dp_guarantee="no (no DP)", majority_acc=d["info"]["majority_acc"],

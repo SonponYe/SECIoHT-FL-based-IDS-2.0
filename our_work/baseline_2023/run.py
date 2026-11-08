@@ -2,8 +2,8 @@
 
 Run from our_work/ :   python -m baseline_2023.run --stage federated --clients 5 10 15 --seeds 0 1 2
 Stages: central(B0)  federated(B1)  | all
-Defaults follow the paper's Table II: client Adam lr 0.01, server Adam lr 0.05, batch 1024, 100 rounds,
-100 local epochs.  Everything the paper does not state is documented in README.md.
+Defaults follow the paper's Table II: client Adam lr 0.01, server Adam lr 0.05, batch 1024, 100 rounds.
+The authors' notebook sets EPOCHS=100 as the number of federated ROUNDS and never sets local epochs, so we use 1.  Everything the paper does not state is documented in README.md.
 """
 import argparse
 import time
@@ -39,7 +39,7 @@ def main():
     ap.add_argument("--csv", default=str(DEFAULT_CSV))
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--rounds", type=int, default=100)
-    ap.add_argument("--local-epochs", type=int, default=100)
+    ap.add_argument("--local-epochs", type=int, default=1, help="local epochs per round (authors' code: not set -> 1)")
     ap.add_argument("--central-epochs", type=int, default=100)
     ap.add_argument("--threads", type=int, default=0)
     a = ap.parse_args()

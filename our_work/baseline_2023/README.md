@@ -7,7 +7,7 @@
 Run from `our_work/`:
 
 ```bash
-python -m baseline_2023.run --stage all --clients 5 10 15 --seeds 0 1 2     # paper's full settings (100 rounds x 100 local epochs)
+python -m baseline_2023.run --stage all --clients 5 10 15 --seeds 0 1 2     # paper's settings (100 rounds x 1 local epoch)
 python -m baseline_2023.run --stage all --quick --seeds 0                   # smoke test
 ```
 
@@ -23,7 +23,7 @@ python -m baseline_2023.run --stage all --quick --seeds 0                   # sm
 | 6 | **Balancing** | **Undersampling** of the majority class (cites an over/under-sampling overview). | IV-C |
 | 7 | **Scaling** | `StandardScaler()` (the text says "0 to 1", which is not what StandardScaler does). | IV-C |
 | 8 | **Model** | 1 input layer, hidden layers of **64, 64, 32** neurons, ReLU, **1 output neuron with sigmoid**, binary cross-entropy. Architecture taken from Rey et al. (2022) and built in TensorFlow Federated. | III-B1 |
-| 9 | **Federated setup (Table II)** | 15/10/5 participants; client optimizer **Adam, lr 0.01**; server optimizer **Adam, lr 0.05**; **100 epochs**; **batch 1024**; **100 rounds**. | Table II |
+| 9 | **Federated setup (Table II)** | 15/10/5 participants; client optimizer **Adam, lr 0.01**; server optimizer **Adam, lr 0.05**; **100 epochs**; **batch 1024**; **100 rounds**. (The authors' notebook shows "100 epochs" is the same thing as the 100 rounds - see section 6.) | Table II |
 | 10 | **Federated process** | Server sends the global model; each client trains locally; clients send weights; server **averages** them; repeat. | III-B1, Fig. 1 |
 | 11 | **Centralised baselines** | **DNN** (64-64-32, lr 0.1, batch 20, sigmoid); **LSTM** (size 4, dropout 0.5, lr 0.1, 100 epochs, Adam, BCE); **CNN-LSTM** (LSTM size 20, dropout 0.2, lr 0.1, 100 epochs, Adam, BCE). Hyper-parameters tuned with `GridSearchCV`. | III-B2 |
 | 12 | **Environment** | Google Colab, 12 GB RAM, 2 CPU cores; Pandas; TensorFlow/Keras/TFF. | IV-A |
@@ -41,7 +41,7 @@ python -m baseline_2023.run --stage all --quick --seeds 0                   # sm
 | How data is split across clients (IID?) | Random IID shards. |
 | Whether undersampling happens before or after the split, and per client or globally | Each client undersamples **its own training shard** to 50/50 after the split. |
 | Whether the scaler is fit per client or globally | One scaler fit on the real training part. |
-| Whether "100 epochs" means local epochs per round | Yes: 100 local epochs per round x 100 rounds (configurable). |
+| Whether "100 epochs" means local epochs per round | **No** (corrected after reading the authors' notebook, section 6): 100 is the number of rounds; local epochs are never set, so we use 1. |
 | Server-side Adam details (betas, epsilon, what is "gradient") | PyTorch Adam defaults; the pseudo-gradient is (global - average of client weights), like TFF's `server_optimizer_fn`. |
 | Optimizer and epochs of the centralised DNN | SGD lr 0.1, batch 20, 100 epochs. |
 | Decision threshold | 0.5 (we also report a validation-tuned threshold). |
@@ -88,3 +88,26 @@ python -m baseline_2023.run --stage all --quick --seeds 0                   # sm
 | Evaluation protocol | **Not stated** (split, seeds, test set) | Also not fully stated |
 
 So the 2023 paper is clearer about **what the model and the training are**, and its numbers are close enough to a real, imbalanced test set that we can reconstruct it. It is still **not a complete specification**: the split, the test-set construction, the seeds and the aggregation details are missing, and its centralised-vs-federated comparison uses different test sets. It also says nothing about privacy, which is the 2025 paper's main claim.
+
+## 6. What the authors' own notebook shows (read after the first build)
+
+Source: `github.com/fatemehm/Federated-Learning-IDS`, notebook `DNN_FL_based_IDS.ipynb` (repo has 3 notebooks and a README, **no data files**). Read through a web fetch that summarised the first ~100k of ~1.2M characters, so treat the details as strong evidence, not a line-by-line audit. The printed final metrics (accuracy 0.906422, precision 0.70394737, recall 0.4976744, loss 0.3533) match the paper's Table III "15 clients" row exactly, and `num_examples: 1635` is the size of the evaluation set.
+
+| Topic | Paper text | Authors' notebook | What our current reconstruction does | Status |
+|---|---|---|---|---|
+| Data file | public wustl-ehms-2020 | reads a pre-cleaned `clean_wustl.csv` from the authors' Google Drive (not public) | public CSV, our cleaning | cannot match exactly |
+| Input features | 36 | **35** (an index column and the label are dropped from the file) | 36 | differs |
+| Cleaning | NaN + duplicates removed | no `dropna` / `drop_duplicates` in the notebook (presumably done when the clean file was made) | dropna + dedupe (changes nothing; the public file has none) | same effect |
+| "Epochs 100" | "Epochs (Federated model) 100" and "Training rounds 100" | `EPOCHS = 100` is the loop over **rounds**; local epochs never set | fixed: 1 local epoch | **corrected** |
+| Client split | "divided the total data into 5, 10, 15 clients" | `np.array_split(df, 15)`: **contiguous chunks of the file**, each then shuffled | random IID shards | **to align** (contiguous chunks of a time-ordered capture are probably non-IID) |
+| Balancing | undersample to balance | undersamples normals to **2 normal : 1 attack** (`negative_ratio=2`), training data only | 50 / 50 | **to align** |
+| Scaling | StandardScaler | one StandardScaler **per client**, fit on that client's training part | one global scaler | **to align** |
+| Train/test split | not stated | **per client 90 / 10** (`random_state=1337`); **no separate test set** | global 80 / 20 + 15 % validation | **to align** |
+| Evaluation data | not stated | the pooled 10 % splits of all clients: real, **unbalanced** (1,635 rows) | our common 3,263-row real test set | explains why the federated rows look "real distribution" |
+| Decision rule | not stated | Keras metrics at threshold 0.5 | 0.5 and a validation-tuned threshold | same at 0.5 |
+| Server optimizer | Adam lr 0.05 | TFF FedAvg with `server_optimizer_fn` Adam 0.05 | same idea in PyTorch | ok |
+| Training time | "0.033-0.045 s" | the timer wraps no work (prints ~5e-05 s) | not reproduced | paper value not meaningful |
+
+Things the fetch summary flagged but we have **not verified**: a possible column-name misalignment (`columns.difference(['Label'])` sorts names alphabetically) and a metric (`AUC`) used without being imported.
+
+**Consequences.** (1) The federated rows in Table III are scored on a real, imbalanced evaluation set; our earlier back-solved 11-13 % attack share is therefore confirmed. (2) Our reconstruction is not yet faithful on five points (client split, 2:1 balancing, per-client scaler, per-client 90/10 evaluation, 35 vs 36 features). A second mode, `--as-published`, should reproduce their exact pipeline, while the current mode stays as the common-test-set comparison.
