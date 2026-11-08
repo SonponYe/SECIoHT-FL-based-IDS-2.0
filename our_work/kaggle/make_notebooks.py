@@ -21,9 +21,9 @@ print(subprocess.run(["git", "log", "--oneline", "-1"], capture_output=True, tex
 
 NEED_RECIPE = '''# Every stage except the recipe notebook needs the recipe chosen by 00_recipe.
 import os
-assert os.path.exists("shared/best_recipe.json"), (
-    "shared/best_recipe.json is missing. Run notebook 00_recipe first, commit+push the file, then re-run this one.")
-print(open("shared/best_recipe.json").read())'''
+assert os.path.exists("stages/s3_training/best_recipe.json"), (
+    "stages/s3_training/best_recipe.json is missing. Run notebook 00_recipe first, commit+push the file, then re-run this one.")
+print(open("stages/s3_training/best_recipe.json").read())'''
 
 HELPER = '''import subprocess, sys, time
 
@@ -31,26 +31,27 @@ def run_parallel(module, stage, protocol, seeds=(0, 1, 2), extra=()):
     """One process per seed (1 thread each) so the 4 cores stay busy. Results append to results.jsonl."""
     t0, procs = time.time(), []
     for s in seeds:
-        cmd = [sys.executable, "-m", module, "--stage", stage, "--protocol", protocol,
-               "--seeds", str(s), "--threads", "1", *extra]
-        log = open(f"log_{module.split('.')[-1]}_{stage}_{protocol}_s{s}.log", "w")
+        cmd = [sys.executable, "-m", module, "--stage", stage, "--seeds", str(s), "--threads", "1", *extra]
+        if protocol:
+            cmd += ["--protocol", protocol]
+        log = open(f"log_{module.split('.')[0]}_{stage}_{protocol}_s{s}.log", "w")
         procs.append((s, subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)))
     for s, p in procs:
         rc = p.wait()
         print(f"{module} {stage} {protocol} seed {s}: exit {rc}")
-        assert rc == 0, f"failed - see log_{module.split('.')[-1]}_{stage}_{protocol}_s{s}.log"
+        assert rc == 0, f"failed - see log_{module.split('.')[0]}_{stage}_{protocol}_s{s}.log"
     print(f"{stage}/{protocol} done in {(time.time()-t0)/60:.1f} min")'''
 
 PACK = '''import zipfile, glob
 out = "/kaggle/working/results_NAME.zip"
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-    for pat in ["track_paper/results/*", "track_moe/results/*", "shared/best_recipe.json", "log_*.log"]:
+    for pat in ["paper_2025/results/*", "moe/results/*", "baseline_2023/results/*", "stages/s3_training/best_recipe.json", "log_*.log"]:
         for f in glob.glob(pat):
             if os.path.isfile(f):
                 z.write(f)
 print("saved", out, os.path.getsize(out) // 1024, "KB")'''
 
-P, M = "track_paper.run_paper", "track_moe.run_moe"
+P, M, B = "paper_2025.run", "moe.run", "baseline_2023.run"
 NOTEBOOKS = {
     "00_recipe": ("Pick the training recipe (Track Paper P1+P2) and run the leak test (P0). RUN THIS FIRST.", False, [
         (P, "optim", "both"), "THRESHOLD", (P, "reproduce", "both")]),
@@ -62,6 +63,8 @@ NOTEBOOKS = {
     "04_moe_dp_honest": ("Track MoE with differential privacy, honest protocol (M3).", True, [(M, "dp", "honest")]),
     "05_moe_dp_paper": ("Track MoE with differential privacy, paper protocol (M3).", True, [(M, "dp", "paper")]),
     "06_moe_noniid_dp": ("Track MoE non-IID with differential privacy (M5).", True, [(M, "noniid_dp", "both")]),
+    "07_baseline_2023": ("Reconstruct the 2023 DNN-FL paper (centralised baseline + 5/10/15 clients). Independent of the recipe.", False, [
+        (B, "central", None), (B, "federated", None)]),
 }
 
 
@@ -81,11 +84,12 @@ for name, (desc, needs_recipe, steps) in NOTEBOOKS.items():
     cells.append(cell("code", HELPER))
     for st in steps:
         if st == "THRESHOLD":
-            cells.append(cell("code", 'subprocess.run([sys.executable, "-m", "track_paper.run_paper", "--stage", "threshold", '
-                                      '"--protocol", "both"], check=True)\nprint(open("shared/best_recipe.json").read())'))
+            cells.append(cell("code", 'subprocess.run([sys.executable, "-m", "paper_2025.run", "--stage", "threshold", '
+                                      '"--protocol", "both"], check=True)\nprint(open("stages/s3_training/best_recipe.json").read())'))
         else:
             mod, stage, proto = st
-            cells.append(cell("code", f'run_parallel("{mod}", "{stage}", "{proto}")'))
+            proto_src = "None" if proto is None else f'"{proto}"'
+            cells.append(cell("code", f'run_parallel("{mod}", "{stage}", {proto_src})'))
     cells.append(cell("code", PACK.replace("NAME", name)))
     nb = {"cells": cells, "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
                                        "language_info": {"name": "python"}}, "nbformat": 4, "nbformat_minor": 5}

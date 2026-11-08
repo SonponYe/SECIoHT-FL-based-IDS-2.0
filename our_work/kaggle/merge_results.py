@@ -1,14 +1,17 @@
 """Merge the results_*.zip files downloaded from Kaggle into the repo's results folders.
 
 usage (from anywhere):  python merge_results.py path/to/results_00_recipe.zip path/to/results_01_paper_no_dp.zip ...
-Lines are appended to track_*/results/results.jsonl (duplicates skipped), and best_recipe.json is copied
-into shared/ if present.  Then run `python -m compare.compare` from our_work/.
+Lines are appended to */results/results.jsonl (duplicates skipped), and best_recipe.json is copied
+into stages/s3_training/ if present.  Then run `python -m compare.compare` from our_work/.
 """
 import sys
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]          # our_work/
+# zips made before the restructure use the old folder names
+LEGACY = {"track_paper/": "paper_2025/", "track_moe/": "moe/", "shared/best_recipe.json": "stages/s3_training/best_recipe.json"}
+RECIPE = "stages/s3_training/best_recipe.json"
 
 
 def main(zips):
@@ -17,6 +20,9 @@ def main(zips):
         with zipfile.ZipFile(zp) as z:
             for name in z.namelist():
                 norm = name.replace("\\", "/")
+                for old, new in LEGACY.items():
+                    if norm.startswith(old):
+                        norm = new + norm[len(old):]
                 data = z.read(name).decode("utf8")
                 if norm.endswith("results.jsonl") or norm.endswith("timing.jsonl"):
                     dest = ROOT / norm
@@ -27,7 +33,8 @@ def main(zips):
                         with open(dest, "a", encoding="utf8") as f:
                             f.write("\n".join(new) + "\n")
                     added[norm] = added.get(norm, 0) + len(new)
-                elif norm == "shared/best_recipe.json":
+                elif norm == RECIPE:
+                    (ROOT / norm).parent.mkdir(parents=True, exist_ok=True)
                     (ROOT / norm).write_text(data, encoding="utf8")
                     print("copied", norm)
     for k, v in added.items():

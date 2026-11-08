@@ -11,7 +11,7 @@ We are testing whether we can beat the published paper's results (93.2% accuracy
 
 Every experiment runs under two data setups called **protocols**: `paper` (copies the way we think the paper prepared its data) and `honest` (our leak-free version). You do not need to understand them to run the notebooks.
 
-**Your job:** run 7 Kaggle notebooks in the right order, download one zip file from each, and merge them into one final comparison table. Total compute is roughly 15-25 hours, but it runs in the background and you do not need to keep the browser open.
+**Your job:** run 8 Kaggle notebooks in the right order, download one zip file from each, and merge them into one final comparison table. Total compute is roughly 15-25 hours, but it runs in the background and you do not need to keep the browser open.
 
 ## 2. Before you start (one-time setup)
 
@@ -33,6 +33,7 @@ Every experiment runs under two data setups called **protocols**: `paper` (copie
 | **C** | `04_moe_dp_honest` | Track MoE with privacy, honest data | 3-5 h | step D |
 | **C** | `05_moe_dp_paper` | Track MoE with privacy, paper data | 3-5 h | step D |
 | **C** | `06_moe_noniid_dp` | Track MoE, uneven hospitals, with privacy | 1-2 h | step D |
+| **C** | `07_baseline_2023` | Reconstruct the 2023 paper's DNN-FL (does not need the recipe; can run any time) | 1-2 h | step D |
 | **D** | *(you)* | Merge all zips and build the final table | 10 min | done |
 
 Times are rough guesses. **Notebooks in step C can run at the same time** (if Kaggle lets you start several), in any order. **Step A must be completely finished and step B done before you start any notebook in step C.**
@@ -68,8 +69,8 @@ The other six notebooks read a file called `best_recipe.json` from GitHub. It do
    cd our_work
    python kaggle/merge_results.py C:\kaggle_results\results_00_recipe.zip
    ```
-   You should see `copied shared/best_recipe.json` and some `+N lines` messages.
-2. Open `our_work/shared/best_recipe.json` and check it has two entries, `"honest"` and `"paper"`, each with an `"opt"`, `"lr"`, `"balance"`, `"batch"`, `"epochs"`.
+   You should see `copied stages/s3_training/best_recipe.json` and some `+N lines` messages.
+2. Open `our_work/stages/s3_training/best_recipe.json` and check it has two entries, `"honest"` and `"paper"`, each with an `"opt"`, `"lr"`, `"balance"`, `"batch"`, `"epochs"`.
 3. (Optional but useful) see the first results - the data-leak test (P0):
    ```bash
    python -m compare.compare
@@ -78,17 +79,17 @@ The other six notebooks read a file called `best_recipe.json` from GitHub. It do
 4. **Push** the recipe so Kaggle can see it:
    ```bash
    cd ..
-   git add our_work/shared/best_recipe.json
+   git add our_work/stages/s3_training/best_recipe.json
    git commit -m "Add best training recipe from Kaggle notebook 00"
    git push origin main
    ```
    If you do not have push access, **send `best_recipe.json` and the zip to Sonpon** and wait for them to say it is pushed.
 
-**Checkpoint B:** open https://github.com/SonponYe/SECIoHT-FL-based-IDS-2.0/blob/main/our_work/shared/best_recipe.json in your browser. If you see the file, go on. If you get a 404, the push did not work - **do not start step C.**
+**Checkpoint B:** open https://github.com/SonponYe/SECIoHT-FL-based-IDS-2.0/blob/main/our_work/stages/s3_training/best_recipe.json in your browser. If you see the file, go on. If you get a 404, the push did not work - **do not start step C.**
 
-## 6. Step C - run notebooks 01 to 06
+## 6. Step C - run notebooks 01 to 07
 
-Repeat this for **each** of: `01_paper_no_dp`, `02_paper_dp`, `03_moe_no_dp`, `04_moe_dp_honest`, `05_moe_dp_paper`, `06_moe_noniid_dp`.
+Repeat this for **each** of: `01_paper_no_dp`, `02_paper_dp`, `03_moe_no_dp`, `04_moe_dp_honest`, `05_moe_dp_paper`, `06_moe_noniid_dp`, `07_baseline_2023`.
 
 1. New Notebook -> File -> Import Notebook -> upload the `.ipynb`.
 2. Sidebar: **Internet On**, **Accelerator None**.
@@ -101,7 +102,7 @@ Repeat this for **each** of: `01_paper_no_dp`, `02_paper_dp`, `03_moe_no_dp`, `0
 - The log ends with `saved /kaggle/working/results_...zip`.
 - No line says `failed - see log_...`.
 
-**If a notebook stops immediately with** `shared/best_recipe.json is missing` -> step B was not finished. Do step B, then run it again.
+**If a notebook stops immediately with** `stages/s3_training/best_recipe.json is missing` -> step B was not finished. Do step B, then run it again.
 
 **If it runs out of time** (Kaggle stops sessions after about 12 hours) -> tell Sonpon. The fix is a smaller privacy grid (see the Kaggle README), and it needs a one-line edit.
 
@@ -123,7 +124,7 @@ python -m compare.compare
 (Do **not** merge `results_00_recipe.zip` a second time; it was already merged in step B. If you do, nothing breaks - duplicate lines are skipped - but there is no need.)
 
 **Checkpoint D:**
-- `merge_results.py` printed `+N lines` for `track_paper/results/results.jsonl` and `track_moe/results/results.jsonl`.
+- `merge_results.py` printed `+N lines` for `paper_2025/results/results.jsonl` and `moe/results/results.jsonl`.
 - `python -m compare.compare` finished without an error and created `our_work/compare/final_comparison.md` and `final_comparison.csv`.
 - Open `final_comparison.md`. It should have two sections, **Protocol: honest** and **Protocol: paper**, each with tables headed *Centralized*, *Federated (no DP)*, *Federated + DP*, *Non-IID*, and a *Winners* list.
 
@@ -131,7 +132,7 @@ Then push the results (or send them to Sonpon):
 
 ```bash
 cd ..
-git add our_work/track_paper/results our_work/track_moe/results our_work/compare/final_comparison.md our_work/compare/final_comparison.csv
+git add our_work/paper_2025/results our_work/moe/results our_work/compare/final_comparison.md our_work/compare/final_comparison.csv
 git commit -m "Add full experiment results and final comparison"
 git push origin main
 ```
@@ -147,7 +148,7 @@ git push origin main
 | What you see | What it means | What to do |
 |---|---|---|
 | Red cross, log mentions `could not resolve host` or `git clone` failed | Internet is off in the notebook | Sidebar -> Internet On (needs phone verification), run again |
-| Stops with `shared/best_recipe.json is missing` | Step B not done or not pushed | Finish step B, check the file on GitHub, run again |
+| Stops with `stages/s3_training/best_recipe.json is missing` | Step B not done or not pushed | Finish step B, check the file on GitHub, run again |
 | `failed - see log_...` | One seed's process crashed | Open the `log_*` file named in the message and send its last 30 lines to Sonpon |
 | Notebook has been running for more than 12 hours | Kaggle limit | Tell Sonpon, do not wait |
 | `merge_results.py` says `+0 lines` | The zip was already merged or is empty | Check you picked the right zip; this is harmless if you already merged it |
@@ -158,7 +159,7 @@ git push origin main
 
 - [ ] A: `00_recipe` ran, zip downloaded
 - [ ] B: recipe merged, `best_recipe.json` is on GitHub (checked in the browser)
-- [ ] C: six notebooks ran, six zips downloaded (one each)
+- [ ] C: six notebooks ran, seven zips downloaded (one each)
 - [ ] D: all zips merged, `final_comparison.md` created
 - [ ] Results pushed (or sent to Sonpon)
 - [ ] Report of any problems sent

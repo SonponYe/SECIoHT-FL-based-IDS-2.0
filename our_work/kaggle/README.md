@@ -1,6 +1,6 @@
 # Running the experiments on Kaggle
 
-Seven ready-made notebooks. Each one clones this (public) repo, installs `opacus imbalanced-learn scipy`, runs its stages with **one process per seed**, and zips the results.
+Eight ready-made notebooks. Each one clones this (public) repo, installs `opacus imbalanced-learn scipy`, runs its stages with **one process per seed**, and zips the results.
 
 | Notebook | What it runs | Rough time* |
 |---|---|---|
@@ -11,6 +11,7 @@ Seven ready-made notebooks. Each one clones this (public) repo, installs `opacus
 | `04_moe_dp_honest` | Track MoE: DP grid, honest protocol | 3–5 h |
 | `05_moe_dp_paper` | Track MoE: DP grid, paper protocol | 3–5 h |
 | `06_moe_noniid_dp` | Track MoE: non-IID + DP | 1–2 h |
+| `07_baseline_2023` | 2023 DNN-FL reconstruction (5/10/15 clients); independent of the recipe, can run any time | 1–2 h |
 
 \*Rough guesses scaled from our laptop smoke test. Check the real speed from the first notebook's logs and adjust. Kaggle sessions stop after about 12 h, so if one is too slow, re-run it with `--grid small` (edit the `run_parallel(...)` line to add `extra=("--grid", "small")`).
 
@@ -21,7 +22,7 @@ Seven ready-made notebooks. Each one clones this (public) repo, installs `opacus
 3. **Settings (right sidebar):** *Internet = On*, *Accelerator = None* (CPU only; a GPU does not help here).
 4. **Run in the background:** *Save Version → Save & Run All (Commit)*. You can close the browser. Check progress under the notebook's *Versions* tab.
 5. **Download** the output file `results_00_recipe.zip` from the finished version's *Output* tab.
-6. **Hand the recipe back (important):** the other notebooks need `shared/best_recipe.json`. Merge the zip locally (below), then commit and push `our_work/shared/best_recipe.json`. The other notebooks clone the repo, so they pick it up.
+6. **Hand the recipe back (important):** the other notebooks need `stages/s3_training/best_recipe.json`. Merge the zip locally (below), then commit and push `our_work/stages/s3_training/best_recipe.json`. The other notebooks clone the repo, so they pick it up.
 7. **Run notebooks 01–06** the same way (they can run at the same time if Kaggle lets you; otherwise one after another). Each stops with a clear message if the recipe file is missing.
 8. **Merge everything locally** (from `our_work/`):
 
@@ -30,7 +31,7 @@ Seven ready-made notebooks. Each one clones this (public) repo, installs `opacus
    python -m compare.compare
    ```
 
-   `merge_results.py` appends the new lines into `track_*/results/results.jsonl` (skipping duplicates) and copies the recipe file. Then `compare.compare` writes `compare/final_comparison.md` and `.csv`.
+   `merge_results.py` appends the new lines into `*/results/results.jsonl` (skipping duplicates) and copies the recipe file. Then `compare.compare` writes `compare/final_comparison.md` and `.csv`.
 
 ## Good to know
 
