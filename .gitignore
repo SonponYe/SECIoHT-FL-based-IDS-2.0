@@ -59,3 +59,4 @@ our_work/compare/final_comparison_quick.*
 
 # Third-party papers are not redistributed (licensing); keep local only
 references/*.pdf
+our_work/notebooks/_runs/
