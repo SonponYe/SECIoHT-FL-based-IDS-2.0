@@ -1,0 +1,17 @@
+{
+  "paper": {
+    "opt": "adam",
+    "lr": 0.001,
+    "balance": "smote",
+    "batch": 64,
+    "epochs": 60
+  },
+  "note": "selected by mean validation F1 (threshold-tuned) in track_paper stage P2",
+  "honest": {
+    "opt": "momentum",
+    "lr": 0.01,
+    "balance": "weights",
+    "batch": 64,
+    "epochs": 60
+  }
+}
