@@ -57,3 +57,6 @@ pytest.ini
 our_work/track_paper/results/quick/
 our_work/track_moe/results/quick/
 our_work/compare/final_comparison_quick.*
+
+# Third-party papers are not redistributed (licensing); keep local only
+references/*.pdf
