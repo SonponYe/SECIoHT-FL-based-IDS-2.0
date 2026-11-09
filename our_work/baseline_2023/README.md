@@ -61,7 +61,7 @@ python -m baseline_2023.run --stage all --quick --seeds 0                   # sm
   So the federated models appear to have been scored on a **real, imbalanced** test set, and the centralised baselines on a **balanced** one. The paper's "federated is equivalent or better" comparison therefore mixes two different test sets.
 * **Accuracy flatters the federated models.** With ~12 % attacks, "always normal" scores ~88 %, so 91.4 % is only ~3.5 points above it, and precision/recall (65 / 61) are far below the centralised DNN's (93 / 88).
 * **F1 of the federated rows** (from the table): 15 clients 0.58, 10 clients 0.63, 5 clients 0.65. Our `honest`-protocol results for comparison: FedAvg DNN 0.69, FedAvg MoE 0.73 (3 seeds, tuned threshold).
-* **ECU-IoHT:** the paper states 87,754 *normal* and 23,453 *attack* rows. Our Stage 1 notes recorded the opposite (87,754 attack) and parked ECU because of it. Worth re-checking before calling that dataset artificial. The paper also lists "type of attacks" among the 7 features, which would leak the label.
+* **ECU-IoHT:** the paper states 87,754 *normal* and 23,453 *attack* rows. Our Stage 1 notes recorded the opposite (87,754 attack) and parked ECU because of it. Worth re-checking before calling that dataset artificial. The paper lists "type of attacks" among the 7 features; the notebook uses `Type` as the label, so that sentence is loose wording, not a leak (ECU was not analysed further).
 
 ## 4. How the code maps to the paper
 
@@ -89,25 +89,51 @@ python -m baseline_2023.run --stage all --quick --seeds 0                   # sm
 
 So the 2023 paper is clearer about **what the model and the training are**, and its numbers are close enough to a real, imbalanced test set that we can reconstruct it. It is still **not a complete specification**: the split, the test-set construction, the seeds and the aggregation details are missing, and its centralised-vs-federated comparison uses different test sets. It also says nothing about privacy, which is the 2025 paper's main claim.
 
-## 6. What the authors' own notebook shows (read after the first build)
+## 6. What the authors' own notebook shows (verified directly)
 
-Source: `github.com/fatemehm/Federated-Learning-IDS`, notebook `DNN_FL_based_IDS.ipynb` (repo has 3 notebooks and a README, **no data files**). Read through a web fetch that summarised the first ~100k of ~1.2M characters, so treat the details as strong evidence, not a line-by-line audit. The printed final metrics (accuracy 0.906422, precision 0.70394737, recall 0.4976744, loss 0.3533) match the paper's Table III "15 clients" row exactly, and `num_examples: 1635` is the size of the evaluation set.
+Source: the authors' notebook `DNN_FL_based_IDS.ipynb` (kept in `references/authors_2023_DNN_FL_based_IDS.ipynb`, untracked), read cell by cell. Their GitHub repo has three notebooks and **no data**. We rebuilt their data file from our public CSV and replayed their preprocessing: `audit/replay_column_bug.py` and `audit/index_leak_test.py`.
 
-| Topic | Paper text | Authors' notebook | What our current reconstruction does | Status |
-|---|---|---|---|---|
-| Data file | public wustl-ehms-2020 | reads a pre-cleaned `clean_wustl.csv` from the authors' Google Drive (not public) | public CSV, our cleaning | cannot match exactly |
-| Input features | 36 | **35** (an index column and the label are dropped from the file) | 36 | differs |
-| Cleaning | NaN + duplicates removed | no `dropna` / `drop_duplicates` in the notebook (presumably done when the clean file was made) | dropna + dedupe (changes nothing; the public file has none) | same effect |
-| "Epochs 100" | "Epochs (Federated model) 100" and "Training rounds 100" | `EPOCHS = 100` is the loop over **rounds**; local epochs never set | fixed: 1 local epoch | **corrected** |
-| Client split | "divided the total data into 5, 10, 15 clients" | `np.array_split(df, 15)`: **contiguous chunks of the file**, each then shuffled | random IID shards | **to align** (contiguous chunks of a time-ordered capture are probably non-IID) |
-| Balancing | undersample to balance | undersamples normals to **2 normal : 1 attack** (`negative_ratio=2`), training data only | 50 / 50 | **to align** |
-| Scaling | StandardScaler | one StandardScaler **per client**, fit on that client's training part | one global scaler | **to align** |
-| Train/test split | not stated | **per client 90 / 10** (`random_state=1337`); **no separate test set** | global 80 / 20 + 15 % validation | **to align** |
-| Evaluation data | not stated | the pooled 10 % splits of all clients: real, **unbalanced** (1,635 rows) | our common 3,263-row real test set | explains why the federated rows look "real distribution" |
-| Decision rule | not stated | Keras metrics at threshold 0.5 | 0.5 and a validation-tuned threshold | same at 0.5 |
-| Server optimizer | Adam lr 0.05 | TFF FedAvg with `server_optimizer_fn` Adam 0.05 | same idea in PyTorch | ok |
-| Training time | "0.033-0.045 s" | the timer wraps no work (prints ~5e-05 s) | not reproduced | paper value not meaningful |
+### 6.1 How many columns the paper really used
 
-Things the fetch summary flagged but we have **not verified**: a possible column-name misalignment (`columns.difference(['Label'])` sorts names alphabetically) and a metric (`AUC`) used without being imported.
+| | Count | Detail |
+|---|---|---|
+| Public WUSTL file | 45 columns | 43 data columns + `Attack Category` + `Label` |
+| Paper text | **36 features** | "36 features (both network and biometric data)" |
+| Authors' `clean_wustl.csv` | 37 columns | an index column `Unnamed: 0` + **35 features** + `Label` (notebook prints `[5 rows x 37 columns]`) |
+| Fed to the model | **35 inputs** | **34 genuine features + the standardised row index**; temperature is lost (6.3) |
 
-**Consequences.** (1) The federated rows in Table III are scored on a real, imbalanced evaluation set; our earlier back-solved 11-13 % attack share is therefore confirmed. (2) Our reconstruction is not yet faithful on five points (client split, 2:1 balancing, per-client scaler, per-client 90/10 evaluation, 35 vs 36 features). A second mode, `--as-published`, should reproduce their exact pipeline, while the current mode stays as the common-test-set comparison.
+**Removed from the public file to make `clean_wustl.csv`:** `Dir`, `Flgs`, `SrcAddr`, `DstAddr`, `Dport`, `SrcMac`, `DstMac`, `Packet_num`, `Attack Category` (9 columns). Our pipeline removes the same list **except `Dport`** (8), which is why we keep 36 features and they keep 35. Evidence: dropping exactly these 9 columns reproduces the notebook's printed `head()` (same 37 columns in the same order, `Sport` followed directly by `SrcBytes`), client 1's label counts (935 normal / 153 attack) and its shuffled row order (248, 204, 142, 472, 370). The columns hidden behind `...` in their printout are inferred from the count, not seen.
+
+### 6.2 Preprocessing: paper vs notebook
+
+| Step | Paper (Section IV-C) | Authors' notebook |
+|---|---|---|
+| Starting data | raw CSV | `clean_wustl.csv` (pre-cleaned, not shared); 16,318 rows, same order as the public file |
+| Client split | "divided the total data into 5, 10, 15 clients" | `np.array_split` into **contiguous chunks** (saved as `wus1.csv` ... ), then each chunk shuffled (`random_state=13`). Attacks per chunk are fairly even (15 clients: 93-174 of 1,088 rows, 8.5-16 %), so the split is only mildly non-IID |
+| NaN / duplicates | removed | **no code for it** in the notebook (the public file has none anyway) |
+| Labels | 0 normal / 1 attack | already in the file |
+| Train / test | not stated | per client **90 / 10** split (`random_state=1337`). **There is no test set**: the pooled 10 % splits (1,635 rows, 13.1 % attack, unbalanced) are the reported evaluation |
+| Scaling | `StandardScaler` | `StandardScaler` **per client**, fit on that client's unbalanced training split (the comment above it says standardisation "actually hurts performance") |
+| Column handling | not mentioned | `train_df[train_df.columns.difference(['Label'])] = train_features` (see 6.3) |
+| Balancing | undersample to balance | random undersampling of normals to **2 normal : 1 attack**, training split only, via the unseeded `random.sample` (so not reproducible run to run). Validation stays unbalanced |
+| Model | 64-64-32, sigmoid, BCE | 35 -> 64 -> 64 -> 32 -> 1, sigmoid, BCE |
+| Federation | TFF FedAvg, Adam 0.01 client / 0.05 server, batch 1024, "epochs 100", "rounds 100" | same, but `EPOCHS = 100` is the loop over **rounds**; local epochs never set (TFF default: one pass). A client holds ~370 rows, i.e. **one batch of 1024, so one gradient step per client per round** |
+| Metrics | accuracy, precision, recall, loss | Keras metrics at threshold 0.5 on the pooled validation rows after round 100 (no model selection) |
+| Timings | train 0.033-0.045 s | the timer is read **before** the training loop (prints ~5e-05 s), so the paper's timings are not meaningful |
+
+The printed final metrics reproduce Table III exactly: 15 clients 0.9064 / 0.7039 / 0.4977 (loss 0.353), 10 clients 0.9140 / 0.6505 / 0.6142 (loss 0.256), 5 clients 0.9070.
+
+### 6.3 The pandas line that rearranges the columns
+
+`train_df.columns.difference(['Label'])` returns the column names **sorted alphabetically**, but `train_features` is in the **original** column order, so every standardised column is written into the wrong-named column. Replaying it on the rebuilt data shows two effects:
+
+1. The column named `Unnamed: 0` (alphabetical position 28) receives the standardised **`Temp`** values. `make_tf_dataset` then drops the column named `Unnamed: 0`, so **temperature is thrown away**.
+2. The standardised **row index** (original column 0) is written into the column named `DIA` and survives, so **the model is trained with the row's position in the file as an input feature**. The shuffled copy of the other 34 columns is harmless (the model is order-agnostic and train/validation are permuted identically).
+
+How much it matters (`audit/index_leak_test.py`; pooled 15-client validation, MLP 64-64-32 as a stand-in, mean of 3 seeds): the index alone gives a weak signal (AUC 0.61-0.69). Training with it versus without it: AUC 0.972 vs 0.959, recall 0.91 vs 0.85, F1 0.73 vs 0.71. So the leak is **real but modest**; it does not explain the headline numbers on its own.
+
+### 6.4 Consequences for our reconstruction
+
+* The federated rows of Table III are scored on a **real, unbalanced** evaluation set (13.1 % attack), confirming our earlier back-solved 11-13 % attack share.
+* With only ~100 single-step rounds, these federated models are lightly trained; their low recall (0.50 at 15 clients) is a property of that setup.
+* Our `baseline_2023` is not yet faithful on: client split (random vs contiguous), 2:1 balancing, per-client scaler, per-client 90/10 evaluation, and `Dport`. A second mode, `--as-published`, should reproduce their pipeline (with and without the column bug), while the current mode stays the common-test-set comparison.
